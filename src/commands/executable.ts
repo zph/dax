@@ -38,6 +38,28 @@ export function createExecutableCommand(resolvedPath: string): CommandHandler {
         ...pipeStringVals,
       });
     } catch (err) {
+      // Check for stdio-related errors
+      if (isStdioInheritanceError(err)) {
+        const cmdName = resolvedPath.split("/").pop() || resolvedPath;
+        throw new Error(
+          `Failed to spawn command "${cmdName}" due to stdio configuration issues.\n` +
+          `This often occurs in Jupyter notebooks or nested execution contexts.\n` +
+          `\n` +
+          `Suggested fixes:\n` +
+          `  1. Use explicit piped stdio:\n` +
+          `     await $\`${cmdName}\`.stdout("piped").stderr("piped")\n` +
+          `\n` +
+          `  2. Use inheritPiped for better compatibility:\n` +
+          `     await $\`${cmdName}\`.stdout("inheritPiped")\n` +
+          `\n` +
+          `  3. Set environment variable:\n` +
+          `     export DAX_STDIO_MODE=piped\n` +
+          `\n` +
+          `Original error: ${errorToString(err)}`,
+          { cause: err },
+        );
+      }
+
       // Deno throws this sync, Node.js throws it async
       throw checkMapCwdNotExistsError(cwd, err);
     }
@@ -141,4 +163,35 @@ function checkMapCwdNotExistsError(cwd: string, err: unknown) {
   } else {
     throw err;
   }
+}
+
+/**
+ * Detects if an error is related to stdio inheritance issues.
+ */
+function isStdioInheritanceError(err: unknown): boolean {
+  if (!err) return false;
+
+  const errMsg = errorToString(err).toLowerCase();
+  const stdioErrorPatterns = [
+    "stdio",
+    "pipe",
+    "not a tty",
+    "bad file descriptor",
+    "invalid handle",
+    "broken pipe",
+  ];
+
+  // Check error message
+  for (const pattern of stdioErrorPatterns) {
+    if (errMsg.includes(pattern)) {
+      return true;
+    }
+  }
+
+  // Check for specific exit code 128 (often indicates subprocess spawn issues)
+  if ((err as any).code === 128) {
+    return true;
+  }
+
+  return false;
 }

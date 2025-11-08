@@ -358,3 +358,79 @@ export function errorToString(err: unknown) {
     return message;
   }
 }
+
+/**
+ * Detects if the current environment has issues with stdio inheritance.
+ * Returns true for Jupyter notebooks, nested dax execution, or other
+ * non-interactive environments where stdio inheritance may fail.
+ */
+export function shouldUsePipedStdio(): boolean {
+  // Check if we're in a Jupyter environment
+  if (typeof Deno !== "undefined") {
+    // Check for Deno.jupyter API (if it exists)
+    if ("jupyter" in Deno) {
+      return true;
+    }
+
+    // Check for Jupyter environment variables
+    try {
+      const jupyterEnvVars = [
+        "JUPYTER_RUNTIME_DIR",
+        "JPY_SESSION_NAME",
+        "JUPYTER_CONFIG_DIR",
+        "KERNEL_ID",
+      ];
+
+      for (const envVar of jupyterEnvVars) {
+        if (Deno.env.get(envVar)) {
+          return true;
+        }
+      }
+    } catch {
+      // Env access denied, continue with other checks
+    }
+  }
+
+  // Check if stdin/stdout/stderr are not TTY (indicates piped/redirected)
+  // This helps detect nested execution scenarios
+  try {
+    if (typeof Deno !== "undefined" && Deno.stdin) {
+      const isInteractive = Deno.stdin.isTerminal?.() ?? true;
+      const stdoutIsTerminal = Deno.stdout.isTerminal?.() ?? true;
+
+      // If both stdin and stdout are not terminals, we're likely in a
+      // non-interactive context where inheritance might fail
+      if (!isInteractive && !stdoutIsTerminal) {
+        return true;
+      }
+    }
+  } catch {
+    // If we can't check TTY status, err on the side of caution
+    // Don't assume piped mode just because we can't check
+    return false;
+  }
+
+  return false;
+}
+
+/**
+ * Gets the recommended default stdio kind based on the environment.
+ * Can be overridden with DAX_STDIO_MODE environment variable.
+ */
+export function getDefaultStdioKind(): "inherit" | "inheritPiped" {
+  // Check for explicit override via environment variable
+  try {
+    const override = Deno.env.get("DAX_STDIO_MODE");
+    if (override === "piped" || override === "inheritPiped") {
+      return "inheritPiped";
+    }
+    if (override === "inherit") {
+      return "inherit";
+    }
+  } catch {
+    // Environment access denied, continue with auto-detection
+  }
+
+  // Auto-detect based on environment
+  return shouldUsePipedStdio() ? "inheritPiped" : "inherit";
+}

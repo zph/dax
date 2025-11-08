@@ -19,7 +19,7 @@ import { testCommand } from "./commands/test.ts";
 import { touchCommand } from "./commands/touch.ts";
 import { unsetCommand } from "./commands/unset.ts";
 import { whichCommand } from "./commands/which.ts";
-import { Box, delayToMs, errorToString, LoggerTreeBox } from "./common.ts";
+import { Box, delayToMs, errorToString, getDefaultStdioKind, LoggerTreeBox } from "./common.ts";
 import type { Delay } from "./common.ts";
 import { symbols } from "./common.ts";
 import { isShowingProgressBars } from "./console/progress.ts";
@@ -137,10 +137,10 @@ export class CommandBuilder implements PromiseLike<CommandResult> {
     combinedStdoutStderr: false,
     stdin: "inherit",
     stdout: {
-      kind: "inherit",
+      kind: getDefaultStdioKind(),
     },
     stderr: {
-      kind: "inherit",
+      kind: getDefaultStdioKind(),
     },
     noThrow: false,
     env: {},
