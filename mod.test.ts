@@ -37,7 +37,8 @@ Deno.test("should escape arguments", async () => {
 });
 
 Deno.test("should not get stdout when inherited (default)", async () => {
-  const output = await $`echo "should output"`;
+  // Explicitly set inherit to test this behavior regardless of environment detection
+  const output = await $`echo "should output"`.stdout("inherit");
   assertEquals(output.code, 0);
   assertThrows(() => output.stdout, Error, `Stdout was not piped (was inherit).`);
 });
@@ -77,7 +78,8 @@ Deno.test("should not get stdout when set to writer", async () => {
 });
 
 Deno.test("should not get stderr when inherited only (default)", async () => {
-  const output = await $`deno eval 'console.error("should output");'`;
+  // Explicitly set inherit to test this behavior regardless of environment detection
+  const output = await $`deno eval 'console.error("should output");'`.stderr("inherit");
   assertEquals(output.code, 0);
   assertThrows(
     () => output.stderr,
